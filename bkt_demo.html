@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ecnetica — BKT Concept Graph Demo</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    max-width: 760px;
+    margin: 40px auto;
+    padding: 0 20px;
+    color: #1f2328;
+    background: #fafafa;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  p.subtitle { color: #57606a; font-size: 14px; margin-top: 0; }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .row label { font-size: 14px; color: #57606a; white-space: nowrap; min-width: 130px; }
+  .row input[type=range] { flex: 1; }
+  .row .out { font-size: 14px; font-weight: 600; min-width: 44px; text-align: right; }
+
+  .node rect { fill: #d9dcdf; stroke: #1f2328; stroke-width: 1; transition: fill 0.2s; }
+  .node.mastered rect { fill: #8fd19e; }
+  .node text.label { font-size: 13px; font-weight: 600; fill: #1f2328; }
+  .node text.value { font-size: 12px; fill: #3a4048; }
+  line.edge { stroke: #9aa1a8; stroke-width: 1.5; marker-end: url(#arrow); }
+
+  #mastered-count { font-size: 13px; color: #57606a; margin: 12px 0 20px; }
+
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+  }
+  .controls-row .node-label { font-size: 13px; color: #3a4048; min-width: 160px; }
+  button {
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid #d0d7de;
+    background: #fff;
+    cursor: pointer;
+  }
+  button:hover { background: #f3f4f6; }
+  button.correct { color: #1a7f37; }
+  button.wrong { color: #b02a1e; }
+  #reset-btn { margin-top: 18px; }
+</style>
+</head>
+<body>
+
+<h1>Ecnetica — Bayesian Knowledge Tracing demo</h1>
+<p class="subtitle">Click Correct/Wrong on any concept. Evidence updates that node directly, then diffuses to its neighbours through the graph. Each edge's strength (shown on the diagram) comes from taxonomic overlap, multiplied by a global attenuation &beta;.</p>
+
+<div class="row">
+  <label for="threshold-slider">Mastery threshold</label>
+  <input type="range" id="threshold-slider" min="0.5" max="0.99" step="0.01" value="0.90" oninput="setThreshold(this.value)">
+  <span class="out" id="threshold-out">90%</span>
+</div>
+
+<div class="row">
+  <label for="beta-slider">Base &beta;</label>
+  <input type="range" id="beta-slider" min="0.1" max="0.9" step="0.05" value="0.6" oninput="setBeta(this.value)">
+  <span class="out" id="beta-out">0.60</span>
+</div>
+
+<svg width="100%" viewBox="0 0 680 320" role="img" aria-label="Concept graph">
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="#9aa1a8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+</defs>
+
+<line class="edge" x1="340" y1="84" x2="340" y2="138"/>
+<text class="edge-weight" id="w-algebra_basics-quadratics" x="352" y="111" font-size="10" fill="#555"></text>
+<line class="edge" x1="310" y1="184" x2="240" y2="248"/>
+<text class="edge-weight" id="w-quadratics-factoring" x="255" y="210" font-size="10" fill="#555"></text>
+<line class="edge" x1="380" y1="184" x2="430" y2="248"/>
+<text class="edge-weight" id="w-quadratics-completing_square" x="392" y="210" font-size="10" fill="#555"></text>
+
+<g class="node" id="node-algebra_basics">
+  <rect x="250" y="40" width="180" height="44" rx="8"/>
+  <text class="label" x="340" y="58" text-anchor="middle">algebra_basics</text>
+  <text class="value" id="m-algebra_basics" x="340" y="74" text-anchor="middle">50%</text>
+</g>
+<g class="node" id="node-quadratics">
+  <rect x="250" y="140" width="180" height="44" rx="8"/>
+  <text class="label" x="340" y="158" text-anchor="middle">quadratics</text>
+  <text class="value" id="m-quadratics" x="340" y="174" text-anchor="middle">30%</text>
+</g>
+<g class="node" id="node-factoring">
+  <rect x="140" y="250" width="160" height="44" rx="8"/>
+  <text class="label" x="220" y="268" text-anchor="middle">factoring</text>
+  <text class="value" id="m-factoring" x="220" y="284" text-anchor="middle">25%</text>
+</g>
+<g class="node" id="node-completing_square">
+  <rect x="350" y="250" width="180" height="44" rx="8"/>
+  <text class="label" x="440" y="268" text-anchor="middle">completing_square</text>
+  <text class="value" id="m-completing_square" x="440" y="284" text-anchor="middle">20%</text>
+</g>
+</svg>
+
+<div id="mastered-count">0 of 4 nodes at or above threshold</div>
+
+<div id="controls"></div>
+
+<button id="reset-btn" onclick="resetAll()">Reset all</button>
+
+<script>
+const NODES = {
+  algebra_basics: {pInit:0.5, pT:0.2, pS:0.1, pG:0.2, label:'algebra_basics'},
+  quadratics: {pInit:0.3, pT:0.15, pS:0.1, pG:0.25, label:'quadratics'},
+  factoring: {pInit:0.25, pT:0.15, pS:0.1, pG:0.2, label:'factoring'},
+  completing_square: {pInit:0.2, pT:0.15, pS:0.12, pG:0.2, label:'completing_square'}
+};
+
+const EDGES = [
+  ["algebra_basics", "quadratics"],
+  ["quadratics", "factoring"],
+  ["quadratics", "completing_square"]
+];
+
+const MAX_DELTA = 3.0;
+
+const TAXONOMY = {
+  algebra_basics: ['Mathematics', 'Algebra', 'Linear Equations'],
+  quadratics: ['Mathematics', 'Algebra', 'Quadratics'],
+  factoring: ['Mathematics', 'Algebra', 'Quadratics', 'Factoring'],
+  completing_square: ['Mathematics', 'Algebra', 'Quadratics', 'Completing the Square']
+};
+
+function lcaDepth(pathU, pathV) {
+  let depth = 0;
+  const n = Math.min(pathU.length, pathV.length);
+  for (let i = 0; i < n; i++) {
+    if (pathU[i] === pathV[i]) depth++;
+    else break;
+  }
+  return depth;
+}
+
+function taxonomicWeight(u, v) {
+  const pu = TAXONOMY[u], pv = TAXONOMY[v];
+  const d = lcaDepth(pu, pv);
+  return (2 * d) / (pu.length + pv.length);
+}
+
+const EDGE_WEIGHTS = {};
+for (const [u, v] of EDGES) {
+  EDGE_WEIGHTS[u + '|' + v] = taxonomicWeight(u, v);
+}
+
+function getEdgeWeight(u, v) {
+  if ((u + '|' + v) in EDGE_WEIGHTS) return EDGE_WEIGHTS[u + '|' + v];
+  return EDGE_WEIGHTS[v + '|' + u];
+}
+
+function labelEdgeWeights() {
+  for (const [u, v] of EDGES) {
+    const el = document.getElementById('w-' + u + '-' + v);
+    if (el) el.textContent = 'w=' + getEdgeWeight(u, v).toFixed(2);
+  }
+}
+
+let threshold = 0.90;
+let baseBeta = 0.60;
+const state = {};
+for (const id in NODES) state[id] = NODES[id].pInit;
+
+function clamp(m) {
+  return Math.min(0.999, Math.max(0.001, m));
+}
+
+function logit(m) {
+  m = clamp(m);
+  return Math.log(m / (1 - m));
+}
+
+function sigmoid(ell) {
+  return 1 / (1 + Math.exp(-ell));
+}
+
+function neighboursOf(id) {
+  const nbrs = [];
+  for (const [u, v] of EDGES) {
+    if (u === id) nbrs.push(v);
+    if (v === id) nbrs.push(u);
+  }
+  return nbrs;
+}
+
+function pathAttenuation(source) {
+  const parent = {};
+  parent[source] = null;
+  const order = [source];
+  const queue = [source];
+  while (queue.length) {
+    const node = queue.shift();
+    for (const nb of neighboursOf(node)) {
+      if (!(nb in parent)) {
+        parent[nb] = node;
+        order.push(nb);
+        queue.push(nb);
+      }
+    }
+  }
+  const atten = {};
+  atten[source] = 1.0;
+  for (let i = 1; i < order.length; i++) {
+    const nodeId = order[i];
+    const p = parent[nodeId];
+    const edgeFactor = baseBeta * getEdgeWeight(p, nodeId);
+    atten[nodeId] = atten[p] * edgeFactor;
+  }
+  return atten;
+}
+
+function observe(id, correct) {
+  const n = NODES[id];
+  const mBefore = state[id];
+
+  let mObs;
+  if (correct) {
+    const num = mBefore * (1 - n.pS);
+    mObs = num / (num + (1 - mBefore) * n.pG);
+  } else {
+    const num = mBefore * n.pS;
+    mObs = num / (num + (1 - mBefore) * (1 - n.pG));
+  }
+  const mNext = mObs + (1 - mObs) * n.pT;
+  state[id] = mNext;
+
+  const deltaEll = logit(mObs) - logit(mBefore);
+  const atten = pathAttenuation(id);
+  for (const nb in atten) {
+    if (nb === id) continue;
+    let injection = atten[nb] * deltaEll;
+    injection = Math.max(-MAX_DELTA, Math.min(MAX_DELTA, injection));
+    state[nb] = sigmoid(logit(state[nb]) + injection);
+  }
+
+  render();
+}
+
+function resetAll() {
+  for (const id in NODES) state[id] = NODES[id].pInit;
+  render();
+}
+
+function setThreshold(v) {
+  threshold = parseFloat(v);
+  document.getElementById('threshold-out').textContent = Math.round(threshold * 100) + '%';
+  render();
+}
+
+function setBeta(v) {
+  baseBeta = parseFloat(v);
+  document.getElementById('beta-out').textContent = baseBeta.toFixed(2);
+}
+
+function render() {
+  let masteredCount = 0;
+  for (const id in NODES) {
+    const m = state[id];
+    const mastered = m >= threshold;
+    if (mastered) masteredCount++;
+    document.getElementById('m-' + id).textContent = (m * 100).toFixed(1) + '%';
+    document.getElementById('node-' + id).classList.toggle('mastered', mastered);
+  }
+  document.getElementById('mastered-count').textContent = masteredCount + ' of ' + Object.keys(NODES).length + ' nodes at or above threshold';
+}
+
+function buildControls() {
+  const container = document.getElementById('controls');
+  for (const id in NODES) {
+    const row = document.createElement('div');
+    row.className = 'controls-row';
+    const label = document.createElement('span');
+    label.className = 'node-label';
+    label.textContent = NODES[id].label;
+    const btnCorrect = document.createElement('button');
+    btnCorrect.className = 'correct';
+    btnCorrect.textContent = 'Correct';
+    btnCorrect.onclick = () => observe(id, true);
+    const btnWrong = document.createElement('button');
+    btnWrong.className = 'wrong';
+    btnWrong.textContent = 'Wrong';
+    btnWrong.onclick = () => observe(id, false);
+    row.appendChild(label);
+    row.appendChild(btnCorrect);
+    row.appendChild(btnWrong);
+    container.appendChild(row);
+  }
+}
+
+buildControls();
+labelEdgeWeights();
+render();
+</script>
+
+</body>
+</html>
