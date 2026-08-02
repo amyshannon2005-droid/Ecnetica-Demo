@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ecnetica — Floating & Vibrating BKT Concept Graph</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    max-width: 1000px;
+    margin: 20px auto;
+    padding: 0 20px;
+    color: #1f2328;
+    background: #f6f8fa;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.subtitle { color: #57606a; font-size: 14px; margin-top: 0; }
+  
+  .row { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+  .row label { font-size: 14px; color: #57606a; min-width: 150px; }
+  .row input[type=range] { flex: 1; }
+  .row .out { font-size: 14px; font-weight: 600; min-width: 44px; text-align: right; }
+
+  /* SVG Container */
+  svg {
+    background: #ffffff;
+    border: 1px solid #e1e4e8;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    overflow: visible;
+  }
+
+  /* Node Styling */
+  .node {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .node circle { 
+    fill: #e1e4e8; 
+    stroke: #24292f; 
+    stroke-width: 1.8; 
+    transition: fill 0.4s ease, stroke 0.3s ease;
+  }
+
+  .node.mastered circle { 
+    fill: #2da44e; 
+    stroke: #1a7f37;
+  }
+
+  .node text.label { font-size: 10px; font-weight: 600; fill: #1f2328; pointer-events: none; }
+  .node text.value { font-size: 10px; fill: #ffffff; font-weight: 700; pointer-events: none; }
+  .node:not(.mastered) text.value { fill: #24292f; }
+
+  /* Floating Animation */
+  @keyframes floatMotion {
+    0%   { transform: translate(0px, 0px) scale(1); }
+    25%  { transform: translate(2px, -4px) scale(1.01); }
+    50%  { transform: translate(-3px, 3px) scale(0.99); }
+    75%  { transform: translate(3px, 2px) scale(1.005); }
+    100% { transform: translate(0px, 0px) scale(1); }
+  }
+
+  .node.floating {
+    animation: floatMotion var(--float-dur, 6s) ease-in-out infinite var(--float-delay, 0s);
+  }
+
+  /* Vibration Animations */
+  @keyframes vibrateHeavy {
+    0% { transform: translate(0, 0) rotate(0deg) scale(1); }
+    15% { transform: translate(-4px, 3px) rotate(-8deg) scale(1.15); }
+    30% { transform: translate(4px, -3px) rotate(8deg) scale(0.92); }
+    45% { transform: translate(-3px, -2px) rotate(-5deg) scale(1.08); }
+    60% { transform: translate(3px, 2px) rotate(5deg) scale(0.96); }
+    75% { transform: translate(-1px, 1px) rotate(-2deg) scale(1.02); }
+    100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+  }
+
+  @keyframes vibrateMedium {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    20% { transform: translate(-2px, 2px) rotate(-4deg) scale(1.08); }
+    40% { transform: translate(2px, -2px) rotate(4deg) scale(0.95); }
+    60% { transform: translate(-1px, 1px) rotate(-2deg) scale(1.03); }
+    80% { transform: translate(1px, -1px) rotate(1deg) scale(0.98); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+  }
+
+  @keyframes vibrateLight {
+    0% { transform: translate(0, 0); }
+    25% { transform: translate(-1px, 1px) scale(1.03); }
+    50% { transform: translate(1px, -1px) scale(0.98); }
+    75% { transform: translate(-1px, -1px) scale(1.01); }
+    100% { transform: translate(0, 0); }
+  }
+
+  .node.vibrate-heavy { animation: vibrateHeavy 0.55s ease-in-out !important; }
+  .node.vibrate-medium { animation: vibrateMedium 0.55s ease-in-out !important; }
+  .node.vibrate-light { animation: vibrateLight 0.55s ease-in-out !important; }
+
+  line.edge { 
+    stroke: #d0d7de; 
+    stroke-width: 1.8; 
+    marker-end: url(#arrow);
+  }
+  line.edge.cross { 
+    stroke: #d97706; 
+    stroke-dasharray: 4 3; 
+    stroke-width: 2; 
+  }
+
+  .strand-label { font-size: 12px; font-weight: 700; fill: #0969da; }
+
+  /* Control Panel Grid */
+  .controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 20px;
+    background: #ffffff;
+    padding: 16px;
+    border: 1px solid #e1e4e8;
+    border-radius: 8px;
+    margin-top: 16px;
+  }
+  .controls-row { display: flex; align-items: center; gap: 8px; }
+  .controls-row .node-label { font-size: 12px; color: #3a4048; min-width: 150px; font-weight: 600; }
+  button {
+    font-size: 11px; padding: 5px 12px; border-radius: 6px;
+    border: 1px solid #d0d7de; background: #fff; cursor: pointer; font-weight: 600;
+  }
+  button.correct { color: #1a7f37; border-color: #8fd19e; }
+  button.correct:hover { background: #dafbe1; }
+  button.wrong { color: #cf222e; border-color: #ffaba8; }
+  button.wrong:hover { background: #ffebe9; }
+  #reset-btn { margin-top: 12px; width: 100%; padding: 10px; font-size: 13px; font-weight: 600; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<h1>Leaving Cert HL Maths — BKT Concept Graph</h1>
+<p class="subtitle">Nodes gently float in space. Interacting with any node propagates a BKT wave causing related concepts to vibrate based on connection distance and attenuation (Base &beta;).</p>
+
+<div class="row">
+  <label for="threshold-slider">Mastery threshold</label>
+  <input type="range" id="threshold-slider" min="0.5" max="0.99" step="0.01" value="0.90" oninput="setThreshold(this.value)">
+  <span class="out" id="threshold-out">90%</span>
+</div>
+
+<div class="row">
+  <label for="beta-slider">Base &beta; (Attenuation)</label>
+  <input type="range" id="beta-slider" min="0.1" max="0.9" step="0.05" value="0.60" oninput="setBeta(this.value)">
+  <span class="out" id="beta-out">0.60</span>
+</div>
+
+<svg width="100%" viewBox="0 0 920 420" role="img" aria-label="LC HL Maths Concept Graph">
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="#d0d7de" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+</defs>
+
+<text class="strand-label" x="180" y="25" text-anchor="middle">Strand 3 & 4: Number & Algebra</text>
+<text class="strand-label" x="500" y="25" text-anchor="middle">Strand 2 & 5: Geometry, Trig & Calculus</text>
+<text class="strand-label" x="780" y="25" text-anchor="middle">Strand 1: Probability & Stats</text>
+
+<line class="edge" x1="110" y1="65" x2="110" y2="150"/>
+<line class="edge" x1="110" y1="65" x2="250" y2="65"/>
+<line class="edge" x1="110" y1="150" x2="110" y2="250"/>
+<line class="edge" x1="500" y1="150" x2="500" y2="250"/>
+<line class="edge" x1="500" y1="250" x2="500" y2="350"/>
+<line class="edge" x1="780" y1="65" x2="780" y2="250"/>
+
+<line class="edge cross" x1="250" y1="65" x2="500" y2="65"/> 
+<line class="edge cross" x1="110" y1="150" x2="500" y2="150"/> 
+<line class="edge cross" x1="110" y1="250" x2="500" y2="250"/> 
+<line class="edge cross" x1="500" y1="65" x2="500" y2="250"/> 
+<line class="edge cross" x1="250" y1="250" x2="500" y2="350"/> 
+<line class="edge cross" x1="500" y1="350" x2="780" y2="250"/> 
+
+<g class="node floating" id="node-algebra_basics" style="--float-dur: 5.8s; --float-delay: 0s;">
+  <circle cx="110" cy="65" r="36"/>
+  <text class="label" x="110" y="60" text-anchor="middle">algebra_basics</text>
+  <text class="value" id="m-algebra_basics" x="110" y="75" text-anchor="middle">50%</text>
+</g>
+<g class="node floating" id="node-quadratics" style="--float-dur: 6.4s; --float-delay: -1.2s;">
+  <circle cx="110" cy="150" r="36"/>
+  <text class="label" x="110" y="145" text-anchor="middle">quadratics</text>
+  <text class="value" id="m-quadratics" x="110" y="160" text-anchor="middle">35%</text>
+</g>
+<g class="node floating" id="node-complex_numbers" style="--float-dur: 5.2s; --float-delay: -2.5s;">
+  <circle cx="250" cy="65" r="36"/>
+  <text class="label" x="250" y="55" text-anchor="middle">complex</text>
+  <text class="label" x="250" y="66" text-anchor="middle">numbers</text>
+  <text class="value" id="m-complex_numbers" x="250" y="80" text-anchor="middle">35%</text>
+</g>
+<g class="node floating" id="node-functions" style="--float-dur: 6.8s; --float-delay: -0.8s;">
+  <circle cx="110" cy="250" r="36"/>
+  <text class="label" x="110" y="245" text-anchor="middle">functions</text>
+  <text class="value" id="m-functions" x="110" y="260" text-anchor="middle">30%</text>
+</g>
+<g class="node floating" id="node-coord_geometry" style="--float-dur: 6.1s; --float-delay: -3.1s;">
+  <circle cx="250" cy="250" r="36"/>
+  <text class="label" x="250" y="240" text-anchor="middle">coord</text>
+  <text class="label" x="250" y="251" text-anchor="middle">geometry</text>
+  <text class="value" id="m-coord_geometry" x="250" y="265" text-anchor="middle">40%</text>
+</g>
+<g class="node floating" id="node-trig_functions" style="--float-dur: 5.5s; --float-delay: -1.8s;">
+  <circle cx="500" cy="65" r="36"/>
+  <text class="label" x="500" y="60" text-anchor="middle">trig_functions</text>
+  <text class="value" id="m-trig_functions" x="500" y="75" text-anchor="middle">25%</text>
+</g>
+<g class="node floating" id="node-limits" style="--float-dur: 6.6s; --float-delay: -0.4s;">
+  <circle cx="500" cy="150" r="36"/>
+  <text class="label" x="500" y="145" text-anchor="middle">limits</text>
+  <text class="value" id="m-limits" x="500" y="160" text-anchor="middle">25%</text>
+</g>
+<g class="node floating" id="node-differentiation" style="--float-dur: 5.9s; --float-delay: -2.2s;">
+  <circle cx="500" cy="250" r="36"/>
+  <text class="label" x="500" y="245" text-anchor="middle">differentiation</text>
+  <text class="value" id="m-differentiation" x="500" y="260" text-anchor="middle">20%</text>
+</g>
+<g class="node floating" id="node-integration" style="--float-dur: 6.3s; --float-delay: -1.0s;">
+  <circle cx="500" cy="350" r="36"/>
+  <text class="label" x="500" y="345" text-anchor="middle">integration</text>
+  <text class="value" id="m-integration" x="500" y="360" text-anchor="middle">15%</text>
+</g>
+<g class="node floating" id="node-probability" style="--float-dur: 5.7s; --float-delay: -2.9s;">
+  <circle cx="780" cy="65" r="36"/>
+  <text class="label" x="780" y="60" text-anchor="middle">probability</text>
+  <text class="value" id="m-probability" x="780" y="75" text-anchor="middle">35%</text>
+</g>
+<g class="node floating" id="node-inferential_stats" style="--float-dur: 6.5s; --float-delay: -1.5s;">
+  <circle cx="780" cy="250" r="36"/>
+  <text class="label" x="780" y="240" text-anchor="middle">inferential</text>
+  <text class="label" x="780" y="251" text-anchor="middle">stats</text>
+  <text class="value" id="m-inferential_stats" x="780" y="265" text-anchor="middle">20%</text>
+</g>
+</svg>
+
+<div id="controls" class="controls-grid"></div>
+<button id="reset-btn" onclick="resetAll()">Reset All Concept Masteries</button>
+
+<script>
+const NODES = {
+  algebra_basics: {pInit:0.50, pT:0.20, pS:0.10, pG:0.20, label:'algebra_basics'},
+  quadratics: {pInit:0.35, pT:0.18, pS:0.10, pG:0.20, label:'quadratics'},
+  complex_numbers: {pInit:0.35, pT:0.18, pS:0.10, pG:0.20, label:'complex_numbers'},
+  functions: {pInit:0.30, pT:0.15, pS:0.10, pG:0.20, label:'functions'},
+  coord_geometry: {pInit:0.40, pT:0.18, pS:0.10, pG:0.20, label:'coord_geometry'},
+  trig_functions: {pInit:0.25, pT:0.15, pS:0.12, pG:0.18, label:'trig_functions'},
+  limits: {pInit:0.25, pT:0.15, pS:0.10, pG:0.20, label:'limits'},
+  differentiation: {pInit:0.20, pT:0.15, pS:0.10, pG:0.15, label:'differentiation'},
+  integration: {pInit:0.15, pT:0.12, pS:0.10, pG:0.15, label:'integration'},
+  probability: {pInit:0.35, pT:0.15, pS:0.10, pG:0.20, label:'probability'},
+  inferential_stats: {pInit:0.20, pT:0.12, pS:0.10, pG:0.15, label:'inferential_stats'}
+};
+
+const EDGES = [
+  ["algebra_basics", "quadratics"],
+  ["algebra_basics", "complex_numbers"],
+  ["quadratics", "functions"],
+  ["limits", "differentiation"],
+  ["differentiation", "integration"],
+  ["probability", "inferential_stats"],
+  ["complex_numbers", "trig_functions"],
+  ["quadratics", "limits"],
+  ["functions", "differentiation"],
+  ["trig_functions", "differentiation"],
+  ["coord_geometry", "integration"],
+  ["integration", "inferential_stats"]
+];
+
+let baseBeta = 0.60;
+let threshold = 0.90;
+const state = {};
+for (const id in NODES) state[id] = NODES[id].pInit;
+
+function clamp(m) { return Math.min(0.999, Math.max(0.001, m)); }
+function logit(m) { return Math.log(clamp(m) / (1 - clamp(m))); }
+function sigmoid(e) { return 1 / (1 + Math.exp(-e)); }
+
+function neighboursOf(id) {
+  const nbrs = [];
+  for (const [u, v] of EDGES) {
+    if (u === id) nbrs.push(v);
+    if (v === id) nbrs.push(u);
+  }
+  return nbrs;
+}
+
+function pathAttenuation(source) {
+  const parent = { [source]: null };
+  const order = [source], queue = [source];
+  while (queue.length) {
+    const node = queue.shift();
+    for (const nb of neighboursOf(node)) {
+      if (!(nb in parent)) {
+        parent[nb] = node;
+        order.push(nb); queue.push(nb);
+      }
+    }
+  }
+  const atten = { [source]: 1.0 };
+  for (let i = 1; i < order.length; i++) {
+    const nid = order[i];
+    atten[nid] = atten[parent[nid]] * baseBeta;
+  }
+  return atten;
+}
+
+function triggerVibration(id, attenFactor) {
+  const el = document.getElementById('node-' + id);
+  if (!el) return;
+  el.classList.remove('vibrate-heavy', 'vibrate-medium', 'vibrate-light');
+  void el.offsetWidth;
+
+  if (attenFactor >= 0.85) el.classList.add('vibrate-heavy');
+  else if (attenFactor >= 0.3) el.classList.add('vibrate-medium');
+  else if (attenFactor >= 0.1) el.classList.add('vibrate-light');
+
+  setTimeout(() => el.classList.remove('vibrate-heavy', 'vibrate-medium', 'vibrate-light'), 600);
+}
+
+function observe(id, correct) {
+  const n = NODES[id], mBefore = state[id];
+  let mObs = correct ? (mBefore * (1 - n.pS)) / (mBefore * (1 - n.pS) + (1 - mBefore) * n.pG)
+                     : (mBefore * n.pS) / (mBefore * n.pS + (1 - mBefore) * (1 - n.pG));
+  state[id] = mObs + (1 - mObs) * n.pT;
+
+  const deltaEll = logit(mObs) - logit(mBefore);
+  const atten = pathAttenuation(id);
+
+  for (const nb in atten) {
+    triggerVibration(nb, atten[nb]);
+    if (nb === id) continue;
+    let injection = Math.max(-3.0, Math.min(3.0, atten[nb] * deltaEll));
+    state[nb] = sigmoid(logit(state[nb]) + injection);
+  }
+  render();
+}
+
+function resetAll() {
+  for (const id in NODES) {
+    state[id] = NODES[id].pInit;
+    triggerVibration(id, 1.0);
+  }
+  render();
+}
+
+function setThreshold(v) {
+  threshold = parseFloat(v);
+  document.getElementById('threshold-out').textContent = Math.round(threshold * 100) + '%';
+  render();
+}
+
+function setBeta(v) {
+  baseBeta = parseFloat(v);
+  document.getElementById('beta-out').textContent = baseBeta.toFixed(2);
+}
+
+function render() {
+  for (const id in NODES) {
+    const m = state[id];
+    document.getElementById('m-' + id).textContent = (m * 100).toFixed(1) + '%';
+    document.getElementById('node-' + id).classList.toggle('mastered', m >= threshold);
+  }
+}
+
+function buildControls() {
+  const container = document.getElementById('controls');
+  for (const id in NODES) {
+    const row = document.createElement('div');
+    row.className = 'controls-row';
+    const label = document.createElement('span');
+    label.className = 'node-label';
+    label.textContent = NODES[id].label;
+    const btnC = document.createElement('button');
+    btnC.className = 'correct'; btnC.textContent = 'Correct';
+    btnC.onclick = () => observe(id, true);
+    const btnW = document.createElement('button');
+    btnW.className = 'wrong'; btnW.textContent = 'Wrong';
+    btnW.onclick = () => observe(id, false);
+    row.append(label, btnC, btnW);
+    container.appendChild(row);
+  }
+}
+
+buildControls();
+render();
+</script>
+
+</body>
+</html>
